@@ -19,8 +19,11 @@ const imageMeta = {
 
 // Convert glob result to sorted array
 let allImages = Object.entries(imageModules)
-  .map(([path, url]) => {
+  .map(([path, mod]) => {
     const filename = path.split('/').pop();
+    // When using import.meta.glob with eager:true, the value may be a module object with .default
+    // For assets with as: 'url', it should be a string, but we handle both cases.
+    const url = (mod && typeof mod === 'object' && 'default' in mod) ? mod.default : mod;
     return {
       filename,
       url,
@@ -50,7 +53,8 @@ function createAlbumsFromImages(images) {
         filename: img.filename,
         width: img.w,
         height: img.h,
-        aspectRatio: img.aspectRatio
+        aspectRatio: img.aspectRatio,
+        url: img.url
       }))
     });
   }
