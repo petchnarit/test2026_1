@@ -105,6 +105,7 @@ import Masonry from 'masonry-layout'
 import imagesLoaded from 'imagesloaded'
 import { getAlbumById } from '../data/gallery'
 
+const BASE_URL = import.meta.env.BASE_URL || '/'
 const route = useRoute()
 
 // Configuration
@@ -253,7 +254,7 @@ function layoutNextRows() {
         item.style.height = `${h}px`
 
         // Local file URL - no API
-        const baseFileUrl = `images/gallery/${r.img.filename}`
+        const baseFileUrl = `${BASE_URL}images/gallery/${r.img.filename}`
         const src320 = withParams(baseFileUrl, { w: ALLOWED_WIDTHS[0], q: 100 })
         const sizes = `${w}px`
         const alt = `${DATA_CTX.title || ''} - ${r.img.filename || ''}`.trim().replace(/"/g, '&quot;')
@@ -341,7 +342,7 @@ function renderAlbum(data) {
 function getViewUrl(data, idx) {
   const img = IMAGES[idx]
   if (!img) return ''
-  return `images/gallery/${img.filename}?w=${ALLOWED_WIDTHS[1]}&q=80`
+  return `${BASE_URL}images/gallery/${img.filename}?w=${ALLOWED_WIDTHS[1]}&q=80`
 }
 
 function openLB(i, dataCtx) {

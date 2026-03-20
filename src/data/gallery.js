@@ -1,6 +1,9 @@
 // Local gallery data - replaces API calls
 // Images are stored in /public/images/gallery/
 
+// Use BASE_URL for correct path resolution on GitHub Pages
+const BASE_URL = import.meta.env.BASE_URL || '/'
+
 export const albums = [
   {
     id: '1',
@@ -9,7 +12,7 @@ export const albums = [
     aspectRatio: '4/3',
     w: 640,
     h: 480,
-    cover: '/images/gallery/image1.jpg',
+    cover: `${BASE_URL}images/gallery/image1.jpg`,
     picturesCount: 9,
     store: 'public'
   },
@@ -20,7 +23,7 @@ export const albums = [
     aspectRatio: '16/9',
     w: 800,
     h: 450,
-    cover: '/images/gallery/image4.jpg',
+    cover: `${BASE_URL}images/gallery/image4.jpg`,
     picturesCount: 5,
     store: 'public'
   },
@@ -31,7 +34,7 @@ export const albums = [
     aspectRatio: '1/1',
     w: 500,
     h: 500,
-    cover: '/images/gallery/image2.jpg',
+    cover: `${BASE_URL}images/gallery/image2.jpg`,
     picturesCount: 7,
     store: 'public'
   },
@@ -42,7 +45,7 @@ export const albums = [
     aspectRatio: '3/4',
     w: 480,
     h: 640,
-    cover: '/images/gallery/image3.jpg',
+    cover: `${BASE_URL}images/gallery/image3.jpg`,
     picturesCount: 12,
     store: 'public'
   },
@@ -53,7 +56,7 @@ export const albums = [
     aspectRatio: '4/3',
     w: 800,
     h: 600,
-    cover: '/images/gallery/image9.jpg',
+    cover: `${BASE_URL}images/gallery/image9.jpg`,
     picturesCount: 8,
     store: 'public'
   }
