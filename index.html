@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gallery by comcenter</title>
+    <meta name="description" content="Browse our complete photography gallery featuring events, weddings, fashion, commercial, and portrait collections." />
+
+    <!-- Preconnect for fonts -->
+    <link rel="preconnect" href="/fonts/" crossorigin>
+
+    <!-- The APP_CONFIG will be set by the server (CI4) to provide the API base URL -->
+    <script>
+      // In production, this will be injected by the backend (e.g., CI4)
+      window.APP_CONFIG = window.APP_CONFIG || {
+        apiBase: '/api'
+      };
+    </script>
+  </head>
+  <body class="font-sans antialiased bg-gray-50 text-gray-900">
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
