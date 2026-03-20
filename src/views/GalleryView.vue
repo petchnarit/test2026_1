@@ -89,13 +89,12 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import Masonry from 'masonry-layout'
 import imagesLoaded from 'imagesloaded'
-import axios from 'axios'
+import { getAlbums } from '../data/gallery'
 
-const API_BASE = window.APP_CONFIG?.apiBase || '/api'
 const itemsPerPage = 18
 const WIDTHS = [320, 640, 1024, 2048]
 const SIZES = '(min-width: 640px) 50vw, 100vw'
@@ -110,7 +109,6 @@ const showingStart = ref(0)
 const showingEnd = ref(0)
 
 let msnry = null
-let mounted = false
 
 // Helpers
 const $ = (q, root = document) => root.querySelector(q)
@@ -128,19 +126,8 @@ function buildWebpSrcsetFromCover(coverUrl, widths = WIDTHS) {
   return widths.map(w => withParams(coverUrl, { w, q: 80 })).map((u, i) => `${u} ${widths[i]}w`).join(', ')
 }
 
-async function fetchCollections(page = 1, perPage = itemsPerPage) {
-  const url = new URL(API_BASE)
-  url.searchParams.set('page', page)
-  url.searchParams.set('perPage', perPage)
-
-  const res = await fetch(url.toString(), { headers: { Accept: 'application/json' } })
-  if (!res.ok) throw new Error(`Fetch failed: ${res.status}`)
-  return res.json()
-}
-
 function initMasonry(container) {
   if (msnry?.destroy) msnry.destroy()
-
   msnry = new Masonry(container, {
     itemSelector: '.masonry-item',
     columnWidth: '.grid-sizer',
@@ -148,7 +135,6 @@ function initMasonry(container) {
     percentPosition: true,
     transitionDuration: '0.2s',
   })
-
   imagesLoaded(container).on('progress', () => msnry.layout())
 }
 
@@ -163,7 +149,6 @@ function preloadImage(url) {
 function renderGallery(galleries, page, total, totalPagesServer) {
   const container = $('#gallery-masonry')
   if (!container) return
-
   container.innerHTML = `<div class="grid-sizer"></div><div class="gutter-sizer"></div>`
 
   const cards = galleries.map((g, i) => {
@@ -202,7 +187,6 @@ function renderGallery(galleries, page, total, totalPagesServer) {
               />
             </picture>
           </div>
-
           <div class="p-5">
             <h3 class="text-lg font-semibold text-gray-900 mb-1 group-hover:text-purple-600 transition-colors line-clamp-2">${g.title}</h3>
             <div class="flex items-center text-sm text-gray-500">
@@ -211,7 +195,6 @@ function renderGallery(galleries, page, total, totalPagesServer) {
               </svg>
               ${new Date(g.date).toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' })}
             </div>
-
             <div class="flex items-center text-sm text-gray-500 mt-1">
               <svg class="w-4 h-4 mr-1.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -227,19 +210,15 @@ function renderGallery(galleries, page, total, totalPagesServer) {
   container.insertAdjacentHTML('beforeend', cards)
   initMasonry(container)
 
-  // Update pagination info
   const startIndex = (page - 1) * itemsPerPage + 1
   const endIndex   = Math.min(page * itemsPerPage, total)
   showingStart.value = total ? startIndex : 0
   showingEnd.value = total ? endIndex : 0
   totalItems.value = total
-  // These values are already reactive from the response
   currentPage.value = page
   totalPages.value = totalPagesServer
 
   buildPageNumbers()
-
-  // Smooth scroll to top
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
@@ -283,10 +262,10 @@ function buildPageNumbers() {
   if (nextBtn) nextBtn.disabled = currentPage.value >= totalPages.value
 }
 
-async function gotoPage(p, { pushState = true } = {}) {
+function gotoPage(p, { pushState = true } = {}) {
   const page = Math.max(1, Math.min(p, totalPages.value))
   try {
-    const data = await fetchCollections(page, itemsPerPage)
+    const data = getAlbums(page, itemsPerPage)
     totalPages.value = data.totalPages
     totalItems.value = data.total
     renderGallery(data.galleries, data.page, data.total, data.totalPages)
@@ -294,11 +273,10 @@ async function gotoPage(p, { pushState = true } = {}) {
       const url = new URL(location.href)
       url.searchParams.set('page', page)
       history.pushState({ page }, '', url)
+      router.replace({ query: { page } })
     }
-    // Update route query? We can also use router.replace to keep in sync
-    router.replace({ query: { page } })
   } catch (err) {
-    console.error('Failed to fetch page', err)
+    console.error('Failed to load gallery', err)
   }
 }
 
@@ -312,7 +290,7 @@ function initMobileMenu() {
   }
 }
 
-// Watch route query changes (e.g., back/forward)
+// Watch route query changes
 watch(() => route.query.page, (newPage) => {
   const page = parseInt(newPage, 10) || 1
   if (page !== currentPage.value && page >= 1 && page <= totalPages.value) {
@@ -320,23 +298,16 @@ watch(() => route.query.page, (newPage) => {
   }
 })
 
-onMounted(async () => {
-  mounted = true
+onMounted(() => {
   initMobileMenu()
-
   const pageFromUrl = parseInt(route.query.page, 10) || 1
   currentPage.value = pageFromUrl
 
-  try {
-    const data = await fetchCollections(currentPage.value, itemsPerPage)
-    totalPages.value = data.totalPages
-    totalItems.value = data.total
-    renderGallery(data.galleries, data.page, data.total, data.totalPages)
-  } catch (err) {
-    console.error('Failed to load gallery', err)
-  }
+  const data = getAlbums(currentPage.value, itemsPerPage)
+  totalPages.value = data.totalPages
+  totalItems.value = data.total
+  renderGallery(data.galleries, data.page, data.total, data.totalPages)
 
-  // Handle popstate (browser back/forward)
   window.addEventListener('popstate', (e) => {
     const page = e.state?.page ?? parseInt(new URL(location.href).searchParams.get('page') || '1', 10)
     gotoPage(page, { pushState: false })

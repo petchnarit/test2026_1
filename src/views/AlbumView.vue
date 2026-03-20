@@ -103,8 +103,8 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import Masonry from 'masonry-layout'
 import imagesLoaded from 'imagesloaded'
+import { getAlbumById } from '../data/gallery'
 
-const API_BASE = window.APP_CONFIG?.apiBase || '/api'
 const route = useRoute()
 
 // Configuration
@@ -134,8 +134,6 @@ let lastContainerW = 0
 // Helpers
 const $  = (q, root=document) => root.querySelector(q)
 const $$ = (q, root=document) => Array.from(root.querySelectorAll(q))
-const fmtTH = (iso) =>
-  new Date(iso).toLocaleDateString('th-TH-u-ca-gregory', { day:'numeric', month:'long', year:'numeric' })
 
 function withParams(url, extra) {
   const u = new URL(url, location.origin)
@@ -166,16 +164,6 @@ function ioRootMargin() {
   return `${px}px 0px`
 }
 
-// API
-async function fetchAlbumById(id, store = 'public', subdir = '') {
-  const url = new URL(`${API_BASE}/${encodeURIComponent(id)}`, location.origin)
-  if (store) url.searchParams.set('store', store)
-  if (subdir) url.searchParams.set('subdir', subdir)
-  const res = await fetch(url.toString(), { headers: { 'Accept': 'application/json' }})
-  if (!res.ok) throw new Error(`Fetch ${res.status}`)
-  return res.json()
-}
-
 // Layout
 function requestLayoutSoon() {
   if (ioCooldown) return
@@ -186,8 +174,6 @@ function requestLayoutSoon() {
 function layoutNextRows() {
   if (isLayingOut) return
   isLayingOut = true
-
-  const prevNext = NEXT_IDX
   try {
     const grid = $('#grid')
     const containerW = Math.floor(grid.clientWidth || 0)
@@ -201,7 +187,6 @@ function layoutNextRows() {
 
     const targetH = getRowTargetHeight()
     let rowsAdded = 0
-
     let workList = [...rowBuffer]
     rowBuffer = []
 
@@ -267,8 +252,9 @@ function layoutNextRows() {
         item.style.width = `${w}px`
         item.style.height = `${h}px`
 
-        const baseFileUrl = `${API_BASE}/file?store=${encodeURIComponent(DATA_CTX.store || 'public')}&album=${encodeURIComponent(DATA_CTX.id)}&f=${encodeURIComponent(r.img.filename)}`
-        const src320  = withParams(baseFileUrl, { w: ALLOWED_WIDTHS[0], q: 100 })
+        // Local file URL - no API
+        const baseFileUrl = `images/gallery/${r.img.filename}`
+        const src320 = withParams(baseFileUrl, { w: ALLOWED_WIDTHS[0], q: 100 })
         const sizes = `${w}px`
         const alt = `${DATA_CTX.title || ''} - ${r.img.filename || ''}`.trim().replace(/"/g, '&quot;')
 
@@ -287,12 +273,10 @@ function layoutNextRows() {
             />
           </picture>
         `
-
-        item.querySelector('img').addEventListener('click', (e)=>{
+        item.querySelector('img').addEventListener('click', (e) => {
           CUR = Number(e.currentTarget.dataset.index || 0)
           openLB(CUR, DATA_CTX)
         })
-
         rowEl.appendChild(item)
       })
 
@@ -300,7 +284,6 @@ function layoutNextRows() {
       rowsAdded++
 
       if (rowsAdded >= ROWS_PER_CHUNK) break
-
       if (!scaled && NEXT_IDX < IMAGES.length) {
         rowBuffer = row.map(r => ({...r}))
         break
@@ -312,7 +295,6 @@ function layoutNextRows() {
     if (io && SENTINEL && NEXT_IDX >= IMAGES.length && rowBuffer.length === 0) {
       io.unobserve(SENTINEL)
     }
-
   } finally {
     isLayingOut = false
   }
@@ -326,12 +308,11 @@ function setupInfiniteScroll() {
   SENTINEL.className = 'h-8'
   $('#grid').after(SENTINEL)
 
-  io = new IntersectionObserver((entries)=>{
+  io = new IntersectionObserver((entries) => {
     if (entries.some(e=>e.isIntersecting)) {
       requestLayoutSoon()
     }
   }, { rootMargin: ioRootMargin() })
-
   io.observe(SENTINEL)
 }
 
@@ -354,47 +335,24 @@ function renderAlbum(data) {
 
   layoutNextRows()
   setupInfiniteScroll()
-
-  const dlBtn = $('#lb-download')
-  dlBtn?.addEventListener('click', async (e) => {
-    e.preventDefault()
-    try {
-      await shareOrDownloadOriginal(DATA_CTX, CUR)
-    } catch (err) {
-      console.error(err)
-    }
-  })
 }
 
 // Lightbox
-function getDownloadUrl(data, idx) {
-  const img = IMAGES[idx]
-  if (!img) return ''
-  return `${API_BASE}/raw?store=${encodeURIComponent(data.store || 'public')}`
-       + `&album=${encodeURIComponent(data.id)}`
-       + `&f=${encodeURIComponent(img.filename)}`
-}
-
 function getViewUrl(data, idx) {
   const img = IMAGES[idx]
   if (!img) return ''
-  return `${API_BASE}/file?store=${encodeURIComponent(data.store || 'public')}`
-       + `&album=${encodeURIComponent(data.id)}`
-       + `&f=${encodeURIComponent(img.filename)}`
-       + `&w=${ALLOWED_WIDTHS[1]}&q=80`
+  return `images/gallery/${img.filename}?w=${ALLOWED_WIDTHS[1]}&q=80`
 }
 
 function openLB(i, dataCtx) {
   const viewUrl = getViewUrl(dataCtx, i)
   const imgEl = $('#lb-img')
   if (imgEl) imgEl.src = viewUrl
-
   const a = $('#lb-download')
   if (a) {
-    a.href = getDownloadUrl(dataCtx, i)
+    a.href = `images/gallery/${IMAGES[i]?.filename}`
     a.setAttribute('download', IMAGES[i]?.filename || 'photo')
   }
-
   $('#lightbox').classList.remove('hidden')
   document.body.style.overflow = 'hidden'
   preloadLB(i, dataCtx)
@@ -429,66 +387,25 @@ function preloadLB(centerIdx, dataCtx) {
   }
 }
 
-// Share / Download
-async function shareOrDownloadOriginal(data, idx) {
-  const url = getDownloadUrl(data, idx)
-  if (!url) return
-
-  const resp = await fetch(url, { method: 'GET' })
-  if (!resp.ok) throw new Error(`Download failed: ${resp.status}`)
-  const ct = resp.headers.get('Content-Type') || 'application/octet-stream'
-  const blob = await resp.blob()
-
-  const filename = (IMAGES[idx]?.filename || 'photo').replace(/[^\w.\- ()[\]]+/g, '_')
-  const file = new File([blob], filename, { type: ct })
-
-  if (navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
-    try {
-      await navigator.share({
-        files: [file],
-        title: data.title || filename,
-        text: ''
-      })
-      return
-    } catch (err) {
-      console.warn('Share failed, fallback to download:', err)
-    }
-  }
-
-  const a = document.createElement('a')
-  const href = URL.createObjectURL(blob)
-  a.href = href
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  setTimeout(() => URL.revokeObjectURL(href), 2000)
-}
-
 // Resize handling
 function scheduleRelayout() {
   if (relayoutScheduled) return
   relayoutScheduled = true
-
   setTimeout(() => {
     relayoutScheduled = false
     suppressRO = true
     try {
       if (ro) ro.disconnect()
       if (io && SENTINEL) io.unobserve(SENTINEL)
-
       const savedIdx = CUR
       const data = DATA_CTX
       if (!data) return
-
       const grid = $('#grid')
       grid.innerHTML = ''
       NEXT_IDX = 0
       rowBuffer = []
-
       layoutNextRows()
       CUR = savedIdx
-
       if (!ro) {
         ro = new ResizeObserver(() => {
           if (suppressRO) return
@@ -498,7 +415,6 @@ function scheduleRelayout() {
         })
       }
       ro.observe($('#grid'))
-
       if (SENTINEL && io) io.observe(SENTINEL)
     } finally {
       suppressRO = false
@@ -509,48 +425,42 @@ function scheduleRelayout() {
 // Init
 onMounted(() => {
   const id = route.params.id
-  const store = 'public'
-  const subdir = ''
-
   if (!id) {
     $('#error')?.classList.remove('hidden')
     $('#error-detail').textContent = 'ไม่พบค่า id จาก URL'
     return
   }
 
-  fetchAlbumById(id, store, subdir)
-    .then((data)=>{
-      if (!data?.ok) throw new Error('API return not ok')
-      renderAlbum(data)
+  const result = getAlbumById(id)
+  if (!result.ok) {
+    $('#error')?.classList.remove('hidden')
+    $('#error-detail').textContent = 'Album not found'
+    return
+  }
 
-      $('#lb-close')?.addEventListener('click', closeLB)
-      $('#lb-prev')?.addEventListener('click', ()=> nextLB(-1, data))
-      $('#lb-next')?.addEventListener('click', ()=> nextLB(1,  data))
-      $('#lightbox')?.addEventListener('click', (e)=> { if (e.target === e.currentTarget) closeLB(); })
-      window.addEventListener('keydown', (e)=>{
-        const lb = $('#lightbox')
-        if (lb.classList.contains('hidden')) return
-        if (e.key === 'Escape') closeLB()
-        if (e.key === 'ArrowRight') nextLB(1,  data)
-        if (e.key === 'ArrowLeft')  nextLB(-1, data)
-        if (e.key.toLowerCase() === 'd') $('#lb-download')?.click()
-      })
+  renderAlbum(result)
 
-      ro = new ResizeObserver(() => {
-        if (suppressRO) return
-        const w = Math.floor($('#grid').clientWidth || 0)
-        if (!w || Math.abs(w - lastContainerW) < 4) return
-        scheduleRelayout()
-      })
-      ro.observe($('#grid'))
+  $('#lb-close')?.addEventListener('click', closeLB)
+  $('#lb-prev')?.addEventListener('click', ()=> nextLB(-1, result))
+  $('#lb-next')?.addEventListener('click', ()=> nextLB(1,  result))
+  $('#lightbox')?.addEventListener('click', (e)=> { if (e.target === e.currentTarget) closeLB(); })
+  window.addEventListener('keydown', (e) => {
+    const lb = $('#lightbox')
+    if (lb.classList.contains('hidden')) return
+    if (e.key === 'Escape') closeLB()
+    if (e.key === 'ArrowRight') nextLB(1,  result)
+    if (e.key === 'ArrowLeft')  nextLB(-1, result)
+  })
 
-      setupInfiniteScroll()
-    })
-    .catch((err)=>{
-      console.error(err)
-      $('#error')?.classList.remove('hidden')
-      $('#error-detail').textContent = String(err.message || err)
-    })
+  ro = new ResizeObserver(() => {
+    if (suppressRO) return
+    const w = Math.floor($('#grid').clientWidth || 0)
+    if (!w || Math.abs(w - lastContainerW) < 4) return
+    scheduleRelayout()
+  })
+  ro.observe($('#grid'))
+
+  setupInfiniteScroll()
 })
 
 onUnmounted(() => {
