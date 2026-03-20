@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  gallery:
+    build: .
+    container_name: gallery-spa
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    # For production, you may want to add:
+    # environment:
+    #   - NODE_ENV=production
+    # volumes:
+    #   - ./dist:/usr/share/nginx/html:ro  # optional for hot-reload during dev
