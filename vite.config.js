@@ -5,4 +5,7 @@ import vue from '@vitejs/plugin-vue'
 export default defineConfig({
   base: '/test2026_1/',
   plugins: [vue()],
+  build: {
+    assetsInlineLimit: 0
+  }
 })
