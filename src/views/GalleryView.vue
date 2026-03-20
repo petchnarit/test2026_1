@@ -5,11 +5,11 @@
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between items-center h-16">
           <div class="flex-shrink-0">
-            <a href="/" class="text-2xl font-bold text-gray-900">Gallery by comcenter</a>
+            <router-link to="/" class="text-2xl font-bold text-gray-900">Gallery by comcenter</router-link>
           </div>
           <div class="hidden md:block">
             <div class="ml-10 flex items-baseline space-x-8">
-              <a href="/" class="text-gray-700 hover:text-gray-900 px-3 py-2 text-sm font-medium transition-colors">Gallery</a>
+              <router-link to="/" class="text-gray-700 hover:text-gray-900 px-3 py-2 text-sm font-medium transition-colors">Gallery</router-link>
             </div>
           </div>
           <div class="md:hidden">
@@ -23,7 +23,7 @@
       </div>
       <div id="mobile-menu" class="hidden md:hidden bg-white border-t border-gray-200">
         <div class="px-2 pt-2 pb-3 space-y-1">
-          <a href="/" class="block text-gray-700 hover:bg-gray-50 px-3 py-2 text-base font-medium">Gallery</a>
+          <router-link to="/" class="block text-gray-700 hover:bg-gray-50 px-3 py-2 text-base font-medium">Gallery</router-link>
         </div>
       </div>
     </nav>
@@ -49,7 +49,46 @@
           </div>
 
           <!-- Masonry container -->
-          <div class="masonry-container" id="gallery-masonry" style="min-height:400px;"></div>
+          <div class="masonry-container" id="gallery-masonry" style="min-height:400px;">
+            <div class="grid-sizer"></div>
+            <div class="gutter-sizer"></div>
+            <article v-for="(g, i) in galleries" :key="g.id" class="masonry-item">
+              <router-link :to="'/view/' + g.id" class="group block rounded-lg overflow-hidden transition-all transform hover:-translate-y-1 hover:shadow-xl bg-white shadow-md">
+                <div class="relative overflow-hidden" :style="`aspect-ratio:${g.aspectRatio};background:#f0f0f0`">
+                  <picture>
+                    <source type="image/webp" :srcset="buildWebpSrcsetFromCover(g.cover, [320, 640])" :sizes="SIZES">
+                    <img
+                      :src="withParams(g.cover, { w: 32, q: 10 })"
+                      :srcset="buildWebpSrcsetFromCover(g.cover, [320, 640])"
+                      :sizes="SIZES"
+                      :alt="g.title"
+                      :width="g.w"
+                      :height="g.h"
+                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      :loading="currentPage === 1 && i === 0 ? 'eager' : 'lazy'"
+                      decoding="async"
+                      :fetchpriority="currentPage === 1 && i === 0 ? 'high' : 'low'"
+                    />
+                  </picture>
+                </div>
+                <div class="p-5">
+                  <h3 class="text-lg font-semibold text-gray-900 mb-1 group-hover:text-purple-600 transition-colors line-clamp-2">{{ g.title }}</h3>
+                  <div class="flex items-center text-sm text-gray-500">
+                    <svg class="w-4 h-4 mr-1.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    {{ new Date(g.date).toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' }) }}
+                  </div>
+                  <div class="flex items-center text-sm text-gray-500 mt-1">
+                    <svg class="w-4 h-4 mr-1.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    {{ g.picturesCount ?? 0 }} photos
+                  </div>
+                </div>
+              </router-link>
+            </article>
+          </div>
 
           <!-- Pagination -->
           <div class="mt-12 flex justify-center">
@@ -89,7 +128,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import Masonry from 'masonry-layout'
 import imagesLoaded from 'imagesloaded'
@@ -107,6 +146,7 @@ const totalPages = ref(1)
 const totalItems = ref(0)
 const showingStart = ref(0)
 const showingEnd = ref(0)
+const galleries = ref([])
 
 let msnry = null
 
@@ -126,7 +166,9 @@ function buildWebpSrcsetFromCover(coverUrl, widths = WIDTHS) {
   return widths.map(w => withParams(coverUrl, { w, q: 80 })).map((u, i) => `${u} ${widths[i]}w`).join(', ')
 }
 
-function initMasonry(container) {
+function initMasonry() {
+  const container = $('#gallery-masonry')
+  if (!container) return
   if (msnry?.destroy) msnry.destroy()
   msnry = new Masonry(container, {
     itemSelector: '.masonry-item',
@@ -146,80 +188,27 @@ function preloadImage(url) {
   document.head.appendChild(link)
 }
 
-function renderGallery(galleries, page, total, totalPagesServer) {
-  const container = $('#gallery-masonry')
-  if (!container) return
-  container.innerHTML = `<div class="grid-sizer"></div><div class="gutter-sizer"></div>`
+function renderGallery(data) {
+  galleries.value = data.galleries
+  const startIndex = (data.page - 1) * itemsPerPage + 1
+  const endIndex = Math.min(data.page * itemsPerPage, data.total)
+  showingStart.value = data.total ? startIndex : 0
+  showingEnd.value = data.total ? endIndex : 0
+  totalItems.value = data.total
+  currentPage.value = data.page
+  totalPages.value = data.totalPages
 
-  const cards = galleries.map((g, i) => {
-    const [wRatio, hRatio] = (g.aspectRatio || '4/3').split('/').map(Number)
-    const width = g.w ?? 320
-    const height = g.h ?? Math.round(width * (hRatio / wRatio))
-    const cover = g.cover
-    const srcset = buildWebpSrcsetFromCover(cover, [320, 640])
-    const viewUrl = `/view/${encodeURIComponent(g.id)}`
-
-    let loading = 'lazy'
-    let fetchpriority = 'low'
-    if (page === 1 && i === 0) {
-      loading = 'eager'
-      fetchpriority = 'high'
-      preloadImage(withParams(cover, { w: 640, q: 80 }))
+  // Wait for DOM update, then init masonry
+  nextTick(() => {
+    initMasonry()
+    if (currentPage.value === 1) {
+      const firstImg = $('#gallery-masonry img')
+      if (firstImg) preloadImage(withParams(firstImg.src, { w: 640, q: 80 }))
     }
-
-    return `
-      <article class="masonry-item">
-        <a href="${viewUrl}" class="group block rounded-lg overflow-hidden transition-all transform hover:-translate-y-1 hover:shadow-xl bg-white shadow-md">
-          <div class="relative overflow-hidden" style="aspect-ratio:${wRatio}/${hRatio};background:#f0f0f0">
-            <picture>
-              <source type="image/webp" srcset="${srcset}" sizes="${SIZES}">
-              <img
-                src="${withParams(cover,{w:32,q:10})}"
-                srcset="${srcset}"
-                sizes="${SIZES}"
-                alt="${g.title}"
-                width="${width}"
-                height="${height}"
-                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                loading="${loading}"
-                decoding="async"
-                fetchpriority="${fetchpriority}"
-              />
-            </picture>
-          </div>
-          <div class="p-5">
-            <h3 class="text-lg font-semibold text-gray-900 mb-1 group-hover:text-purple-600 transition-colors line-clamp-2">${g.title}</h3>
-            <div class="flex items-center text-sm text-gray-500">
-              <svg class="w-4 h-4 mr-1.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              ${new Date(g.date).toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' })}
-            </div>
-            <div class="flex items-center text-sm text-gray-500 mt-1">
-              <svg class="w-4 h-4 mr-1.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              ${g.picturesCount ?? 0} photos
-            </div>
-          </div>
-        </a>
-      </article>
-    `
-  }).join('')
-
-  container.insertAdjacentHTML('beforeend', cards)
-  initMasonry(container)
-
-  const startIndex = (page - 1) * itemsPerPage + 1
-  const endIndex   = Math.min(page * itemsPerPage, total)
-  showingStart.value = total ? startIndex : 0
-  showingEnd.value = total ? endIndex : 0
-  totalItems.value = total
-  currentPage.value = page
-  totalPages.value = totalPagesServer
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  })
 
   buildPageNumbers()
-  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 function buildPageNumbers() {
@@ -266,13 +255,8 @@ function gotoPage(p, { pushState = true } = {}) {
   const page = Math.max(1, Math.min(p, totalPages.value))
   try {
     const data = getAlbums(page, itemsPerPage)
-    totalPages.value = data.totalPages
-    totalItems.value = data.total
-    renderGallery(data.galleries, data.page, data.total, data.totalPages)
+    renderGallery(data)
     if (pushState) {
-      const url = new URL(location.href)
-      url.searchParams.set('page', page)
-      history.pushState({ page }, '', url)
       router.replace({ query: { page } })
     }
   } catch (err) {
@@ -304,10 +288,9 @@ onMounted(() => {
   currentPage.value = pageFromUrl
 
   const data = getAlbums(currentPage.value, itemsPerPage)
-  totalPages.value = data.totalPages
-  totalItems.value = data.total
-  renderGallery(data.galleries, data.page, data.total, data.totalPages)
+  renderGallery(data)
 
+  // Handle popstate
   window.addEventListener('popstate', (e) => {
     const page = e.state?.page ?? parseInt(new URL(location.href).searchParams.get('page') || '1', 10)
     gotoPage(page, { pushState: false })
