@@ -42,7 +42,7 @@
         <div v-if="album && album.images.length" class="columns-1 sm:columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4">
           <div v-for="(img, idx) in album.images" :key="idx" class="break-inside-avoid mb-4">
             <img
-              :src="getImageUrl(img.filename)"
+              :src="img.url"
               :alt="`${album.title} - ${img.filename}`"
               class="w-full rounded-lg shadow-sm cursor-pointer hover:opacity-95 transition-opacity"
               loading="lazy"
@@ -58,7 +58,7 @@
 
         <!-- Error -->
         <div v-if="error" class="text-center py-16">
-          <p class="text-red-600 font-medium">เกิดข้อผิดพลาดในการโหลคข้อมูล</p>
+          <p class="text-red-600 font-medium">เกิดข้อผิดพลาดในการโหลดข้อมูล</p>
           <p class="text-gray-500 mt-1">{{ error }}</p>
         </div>
       </div>
@@ -81,14 +81,14 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
         </svg>
       </button>
-      <a :href="getDownloadUrl(currentImage)" :download="currentImageFilename" class="absolute top-4 left-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white" aria-label="Download" @click.stop>
+      <a :href="currentImage.url" :download="currentImage.filename" class="absolute top-4 left-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white" aria-label="Download" @click.stop>
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
         </svg>
       </a>
 
       <div class="w-full h-full flex items-center justify-center p-4">
-        <img :src="getImageUrl(currentImageFilename, 2048)" :alt="album.title" class="max-h-full max-w-full object-contain select-none" />
+        <img :src="currentImage.url" :alt="album.title" class="max-h-full max-w-full object-contain select-none" />
       </div>
     </div>
 
@@ -107,7 +107,6 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { getAlbumById } from '../data/gallery'
 
-const BASE_URL = import.meta.env.BASE_URL || '/'
 const route = useRoute()
 
 const album = ref(null)
@@ -115,18 +114,10 @@ const error = ref(null)
 const lightboxOpen = ref(false)
 const currentIndex = ref(0)
 
-const getImageUrl = (filename, w = 320) => {
-  return `${BASE_URL}images/gallery/${filename}?w=${w}&q=80`
-}
-
-const currentImageFilename = computed(() => {
-  if (!album.value || !album.value.images.length) return ''
-  return album.value.images[currentIndex.value]?.filename || ''
+const currentImage = computed(() => {
+  if (!album.value || !album.value.images.length) return { filename: '', url: '' }
+  return album.value.images[currentIndex.value] || { filename: '', url: '' }
 })
-
-const getDownloadUrl = (filename) => {
-  return `${BASE_URL}images/gallery/${filename}`
-}
 
 const openLightbox = (idx) => {
   currentIndex.value = idx

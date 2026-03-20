@@ -1,105 +1,64 @@
-// Local gallery data - replaces API calls
-// Images are stored in /public/images/gallery/
+// Local gallery data - uses Vite's import.meta.glob to auto-discover images
+// Images are stored in /src/assets/gallery/
 
-// Use BASE_URL for correct path resolution on GitHub Pages
-const BASE_URL = import.meta.env.BASE_URL || '/'
+// Get all image files as URLs
+const imageModules = import.meta.glob('/src/assets/gallery/*.{jpg,jpeg,png,webp,gif}', { eager: true, as: 'url' });
 
-export const albums = [
-  {
-    id: '1',
-    title: ' natura',
-    date: '2025-03-15',
-    aspectRatio: '4/3',
-    w: 640,
-    h: 480,
-    cover: `${BASE_URL}images/gallery/image1.jpg`,
-    picturesCount: 9,
-    store: 'public'
-  },
-  {
-    id: '2',
-    title: 'Seascapes',
-    date: '2025-03-10',
-    aspectRatio: '16/9',
-    w: 800,
-    h: 450,
-    cover: `${BASE_URL}images/gallery/image4.jpg`,
-    picturesCount: 5,
-    store: 'public'
-  },
-  {
-    id: '3',
-    title: 'Urban Architecture',
-    date: '2025-03-05',
-    aspectRatio: '1/1',
-    w: 500,
-    h: 500,
-    cover: `${BASE_URL}images/gallery/image2.jpg`,
-    picturesCount: 7,
-    store: 'public'
-  },
-  {
-    id: '4',
-    title: 'Portraits',
-    date: '2025-02-28',
-    aspectRatio: '3/4',
-    w: 480,
-    h: 640,
-    cover: `${BASE_URL}images/gallery/image3.jpg`,
-    picturesCount: 12,
-    store: 'public'
-  },
-  {
-    id: '5',
-    title: 'Wildlife',
-    date: '2025-02-20',
-    aspectRatio: '4/3',
-    w: 800,
-    h: 600,
-    cover: `${BASE_URL}images/gallery/image9.jpg`,
-    picturesCount: 8,
-    store: 'public'
-  }
-];
+// Build image metadata from filenames (aspect ratios for demo)
+const imageMeta = {
+  'image1.jpg': { aspectRatio: '4/3', w: 640, h: 480 },
+  'image2.jpg': { aspectRatio: '1/1', w: 500, h: 500 },
+  'image3.jpg': { aspectRatio: '3/4', w: 480, h: 640 },
+  'image4.jpg': { aspectRatio: '16/9', w: 800, h: 450 },
+  'image5.jpg': { aspectRatio: '3/2', w: 600, h: 400 },
+  'image6.jpg': { aspectRatio: '9/16', w: 450, h: 800 },
+  'image7.jpg': { aspectRatio: '7/5', w: 700, h: 500 },
+  'image8.jpg': { aspectRatio: '5/7', w: 500, h: 700 },
+  'image9.jpg': { aspectRatio: '4/3', w: 800, h: 600 }
+};
 
-// Generate images for each album (in a real app, these would be different)
-function generateImagesForAlbum(album) {
-  const count = album.picturesCount;
-  const images = [];
-  for (let i = 1; i <= count; i++) {
-    // Cycle through the 9 sample images based on index
-    const imgIndex = ((i - 1) % 9) + 1;
-    const filename = `image${imgIndex}.jpg`;
-    // Use the album's aspect ratio as base, but vary slightly per image
-    const [wRatio, hRatio] = album.aspectRatio.split('/').map(Number);
-    // Use predefined sizes from our generated images
-    const sizes = [
-      { w: 640, h: 480 },
-      { w: 500, h: 500 },
-      { w: 480, h: 640 },
-      { w: 800, h: 450 },
-      { w: 600, h: 400 },
-      { w: 450, h: 800 },
-      { w: 700, h: 500 },
-      { w: 500, h: 700 },
-      { w: 800, h: 600 }
-    ];
-    const size = sizes[(imgIndex - 1) % sizes.length];
-    images.push({
+// Convert glob result to sorted array
+let allImages = Object.entries(imageModules)
+  .map(([path, url]) => {
+    const filename = path.split('/').pop();
+    return {
       filename,
-      width: size.w,
-      height: size.h,
-      aspectRatio: `${size.w}/${size.h}`
+      url,
+      ...(imageMeta[filename] || { aspectRatio: '4/3', w: 640, h: 480 })
+    };
+  })
+  .sort((a, b) => a.filename.localeCompare(b.filename, undefined, { numeric: true }));
+
+// Create albums from images (3 images per album for demo)
+function createAlbumsFromImages(images) {
+  const imagesPerAlbum = 3;
+  const albums = [];
+  for (let i = 0; i < images.length; i += imagesPerAlbum) {
+    const group = images.slice(i, i + imagesPerAlbum);
+    const albumNum = Math.floor(i / imagesPerAlbum) + 1;
+    albums.push({
+      id: String(albumNum),
+      title: `Album ${albumNum}`,
+      date: '2025-03-15',
+      aspectRatio: group[0].aspectRatio,
+      w: group[0].w,
+      h: group[0].h,
+      cover: group[0].url,
+      picturesCount: group.length,
+      store: 'public',
+      images: group.map(img => ({
+        filename: img.filename,
+        width: img.w,
+        height: img.h,
+        aspectRatio: img.aspectRatio
+      }))
     });
   }
-  return images;
+  return albums;
 }
 
-// Full album data with images
-export const albumsWithImages = albums.map(album => ({
-  ...album,
-  images: generateImagesForAlbum(album)
-}));
+const albums = createAlbumsFromImages(allImages);
+const albumsWithImages = albums;
 
 // Get album by ID
 export function getAlbumById(id) {
@@ -108,7 +67,7 @@ export function getAlbumById(id) {
   return { ok: false, error: 'Album not found' };
 }
 
-// Get albums with pagination (simulating API)
+// Get albums with pagination
 export function getAlbums(page = 1, perPage = 18) {
   const start = (page - 1) * perPage;
   const end = start + perPage;
